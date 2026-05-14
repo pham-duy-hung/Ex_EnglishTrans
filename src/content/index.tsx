@@ -5,7 +5,7 @@ import { DictionaryPopup } from './DictionaryPopup'
 import { countWordsForBranching } from '../lib/wordCount'
 import { MSG, type TranslateResultToTabMessage } from '../lib/messages'
 import { speakEnglish } from '../lib/speakEnglish'
-import type { WordEntry } from '../types/storage'
+import type { TranslateIpaWordRow, WordEntry } from '../types/storage'
 
 let hostEl: HTMLDivElement | null = null
 let shadow: ShadowRoot | null = null
@@ -67,7 +67,22 @@ function removeTranslateResultPanel() {
   document.getElementById(TRANSLATE_RESULT_HOST_ID)?.remove()
 }
 
-function showTranslateResultPanel(payload: { query: string; translatedText?: string; error?: string }) {
+function appendGbUsBracket(parent: HTMLElement, label: 'gb' | 'us', value: string) {
+  parent.appendChild(document.createTextNode('['))
+  const b = document.createElement('strong')
+  b.textContent = label
+  parent.appendChild(b)
+  parent.appendChild(document.createTextNode(': '))
+  parent.appendChild(document.createTextNode(value))
+  parent.appendChild(document.createTextNode(']'))
+}
+
+function showTranslateResultPanel(payload: {
+  query: string
+  translatedText?: string
+  error?: string
+  ipaByWord?: TranslateIpaWordRow[]
+}) {
   removeTranslateResultPanel()
   const host = document.createElement('div')
   host.id = TRANSLATE_RESULT_HOST_ID
@@ -183,6 +198,48 @@ function showTranslateResultPanel(payload: { query: string; translatedText?: str
     wordBreak: 'break-word',
   })
 
+  const ipaRows = payload.ipaByWord?.filter((r) => r.gb || r.us) ?? []
+  let ipaWrap: HTMLDivElement | null = null
+  if (ipaRows.length > 0 && !payload.error) {
+    ipaWrap = document.createElement('div')
+    Object.assign(ipaWrap.style, {
+      padding: '6px 12px 8px',
+      borderBottom: '1px solid rgba(148,163,184,0.2)',
+      fontSize: '11px',
+      fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+      color: '#cbd5e1',
+      maxHeight: 'min(26vh, 180px)',
+      overflow: 'auto',
+    })
+    const cap = document.createElement('div')
+    cap.textContent = 'IPA (DictionaryAPI)'
+    Object.assign(cap.style, {
+      fontSize: '9px',
+      textTransform: 'uppercase',
+      letterSpacing: '0.06em',
+      color: '#64748b',
+      marginBottom: '6px',
+    })
+    ipaWrap.appendChild(cap)
+    for (const row of ipaRows) {
+      const line = document.createElement('div')
+      Object.assign(line.style, { marginBottom: '5px', wordBreak: 'break-word' })
+      const wspan = document.createElement('span')
+      wspan.textContent = `${row.word} `
+      Object.assign(wspan.style, {
+        fontFamily: 'system-ui,Segoe UI,sans-serif',
+        fontWeight: '600',
+        color: '#94a3b8',
+      })
+      line.appendChild(wspan)
+      const ipaSpan = document.createElement('span')
+      if (row.gb) appendGbUsBracket(ipaSpan, 'gb', row.gb)
+      if (row.us) appendGbUsBracket(ipaSpan, 'us', row.us)
+      line.appendChild(ipaSpan)
+      ipaWrap.appendChild(line)
+    }
+  }
+
   const body = document.createElement('div')
   Object.assign(body.style, {
     padding: '8px 12px 12px',
@@ -198,6 +255,7 @@ function showTranslateResultPanel(payload: { query: string; translatedText?: str
   host.appendChild(header)
   if (speakBar) host.appendChild(speakBar)
   host.appendChild(src)
+  if (ipaWrap) host.appendChild(ipaWrap)
   host.appendChild(body)
   document.documentElement.appendChild(host)
 }
@@ -300,6 +358,7 @@ chrome.runtime.onMessage.addListener((message: { type?: string } | TranslateResu
       query: m.query,
       translatedText: m.translatedText,
       error: m.error,
+      ipaByWord: m.ipaByWord,
     })
   }
 })

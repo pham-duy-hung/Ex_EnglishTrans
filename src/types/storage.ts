@@ -14,9 +14,19 @@ export interface WordSense {
 export interface WordEntry {
   word: string
   ipa?: string
+  /** IPA tách GB / US (DictionaryAPI.dev — nhận diện qua audio -uk / -us). */
+  ipaGb?: string
+  ipaUs?: string
   senses: WordSense[]
   providerId: string
   rawNote?: string
+}
+
+/** Một từ + IPA (phiên dịch cụm — hiển thị trong Side panel / ô trên trang). */
+export interface TranslateIpaWordRow {
+  word: string
+  gb?: string
+  us?: string
 }
 
 export interface HistoryItem {
@@ -90,6 +100,8 @@ export interface TranslateSessionState {
   query: string
   pageUrl?: string
   translatedText?: string
+  /** IPA theo từ (DictionaryAPI), tối đa vài từ đầu của đoạn gốc. */
+  ipaByWord?: TranslateIpaWordRow[]
   error?: string
   updatedAt: number
 }

@@ -3,8 +3,10 @@ import { getDictionaryProvider, loadSettings } from '../lib/dictionary/factory'
 import { appendHistory, appendWordbook, summarizeWordEntry } from '../lib/repo'
 import type { BackgroundMessage, LookupDictionaryMessage, TranslateOpenPanelMessage } from '../lib/messages'
 import { MSG, type TranslateResultToTabMessage } from '../lib/messages'
+import { fetchEnglishWordsGbUsIpaRows } from '../lib/dictionary/dictionaryApiDev'
 import type {
   AppSettings,
+  TranslateIpaWordRow,
   TranslateProxyRequest,
   TranslateProxyResponse,
   TranslateSessionState,
@@ -110,6 +112,22 @@ async function setSession(partial: Omit<TranslateSessionState, 'updatedAt'> & { 
   })
 }
 
+/** Tối đa `max` từ Latin (tiếng Anh) khác nhau — tra IPA từng từ sau dịch cụm. */
+function uniqueEnglishTokensForIpa(text: string, max: number): string[] {
+  const parts = text.trim().split(/\s+/).filter(Boolean)
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const p of parts) {
+    const w = p.replace(/^[^a-z0-9'-]+|[^a-z0-9'-]+$/gi, '').toLowerCase()
+    if (!w || !/[a-z]/i.test(w)) continue
+    if (seen.has(w)) continue
+    seen.add(w)
+    out.push(w)
+    if (out.length >= max) break
+  }
+  return out
+}
+
 chrome.runtime.onMessage.addListener((message: BackgroundMessage, sender, sendResponse) => {
   void (async () => {
     try {
@@ -169,6 +187,7 @@ chrome.runtime.onMessage.addListener((message: BackgroundMessage, sender, sendRe
           awaitingSelection: false,
           query: m.text,
           pageUrl: m.pageUrl,
+          ipaByWord: undefined,
         })
 
         sendResponse({ ok: true as const })
@@ -190,13 +209,19 @@ chrome.runtime.onMessage.addListener((message: BackgroundMessage, sender, sendRe
               sourceLang: settings.sourceLanguage === 'auto' ? null : settings.sourceLanguage,
               targetLang: settings.targetLanguage,
             }
-            const res = await translateWithSettings(settings, req)
+            const tokens = uniqueEnglishTokensForIpa(m.text, 12)
+            const [res, ipaRows] = await Promise.all([
+              translateWithSettings(settings, req),
+              tokens.length > 0 ? fetchEnglishWordsGbUsIpaRows(tokens) : Promise.resolve([] as TranslateIpaWordRow[]),
+            ])
+            const ipaByWord = ipaRows.length ? ipaRows : undefined
             await setSession({
               status: 'done',
               awaitingSelection: false,
               query: m.text,
               pageUrl: m.pageUrl,
               translatedText: res.translatedText,
+              ipaByWord,
             })
             await appendHistory({
               kind: 'translate',
@@ -210,6 +235,7 @@ chrome.runtime.onMessage.addListener((message: BackgroundMessage, sender, sendRe
               query: m.text,
               translatedText: res.translatedText,
               pageUrl: m.pageUrl,
+              ipaByWord,
             })
           } catch (err) {
             const errMsg = err instanceof Error ? err.message : String(err)
@@ -219,6 +245,7 @@ chrome.runtime.onMessage.addListener((message: BackgroundMessage, sender, sendRe
               query: m.text,
               pageUrl: m.pageUrl,
               error: errMsg,
+              ipaByWord: undefined,
             })
             await pushToTab({
               query: m.text,
@@ -304,6 +331,7 @@ chrome.action.onClicked.addListener((tab) => {
       pageUrl: tab.url,
       translatedText: undefined,
       error: undefined,
+      ipaByWord: undefined,
     })
     try {
       await chrome.tabs.sendMessage(tabId, { type: MSG.START_PICK_MODE })

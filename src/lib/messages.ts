@@ -1,3 +1,5 @@
+import type { TranslateIpaWordRow } from '../types/storage'
+
 export const MSG = {
   /** Content script: bật chế độ bôi đen (con trỏ kính lúp / zoom-in). */
   START_PICK_MODE: 'START_PICK_MODE',
@@ -16,6 +18,7 @@ export type TranslateResultToTabMessage = {
   translatedText?: string
   error?: string
   pageUrl?: string
+  ipaByWord?: TranslateIpaWordRow[]
 }
 
 export type LookupDictionaryMessage = {

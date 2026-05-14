@@ -1,5 +1,6 @@
-import type { WordEntry, WordSense } from '../../types/storage'
+import type { TranslateIpaWordRow, WordEntry, WordSense } from '../../types/storage'
 import type { DictionaryLookupInput, DictionaryProvider } from './types'
+import { extractGbUsIpaFromPhonetics } from './phoneticsGbUs'
 
 /** Free Dictionary API — https://dictionaryapi.dev */
 const BASE = 'https://api.dictionaryapi.dev/api/v2/entries'
@@ -11,15 +12,22 @@ type ApiMeaning = {
 
 type ApiEntry = {
   word: string
+  phonetic?: string
   phonetics?: { text?: string; audio?: string }[]
   meanings?: ApiMeaning[]
 }
 
 function mapEntry(json: ApiEntry[], query: string): WordEntry {
   const first = json[0]
-  const ipa =
+  const gbUs = extractGbUsIpaFromPhonetics(first?.phonetics, first?.phonetic)
+  const fallbackIpa =
     first?.phonetics?.map((p) => p.text).find(Boolean) ??
-    first?.phonetics?.find((p) => p.audio)?.text
+    first?.phonetics?.find((p) => p.audio)?.text ??
+    first?.phonetic
+  const ipa =
+    gbUs.gb && gbUs.us && gbUs.gb !== gbUs.us
+      ? `${gbUs.gb} · ${gbUs.us}`
+      : (gbUs.gb ?? gbUs.us ?? fallbackIpa?.trim() ?? undefined)
 
   const senses: WordSense[] =
     first?.meanings?.map((m) => {
@@ -39,9 +47,49 @@ function mapEntry(json: ApiEntry[], query: string): WordEntry {
   return {
     word: first?.word ?? query,
     ipa: ipa || undefined,
+    ipaGb: gbUs.gb,
+    ipaUs: gbUs.us,
     senses,
     providerId: 'dictionarypi-dev',
   }
+}
+
+/** Gọi DictionaryAPI (chỉ từ đơn) — dùng sau dịch cụm để gắn IPA GB/US. */
+export async function fetchEnglishWordGbUsIpaFromApi(
+  word: string,
+  signal?: AbortSignal,
+): Promise<{ gb?: string; us?: string } | null> {
+  const tokenForUrl = word.trim().toLowerCase().split(/\s+/)[0] ?? ''
+  if (!tokenForUrl) return null
+  const url = `${BASE}/en/${encodeURIComponent(tokenForUrl)}`
+  try {
+    const res = await fetch(url, { signal })
+    if (!res.ok) return null
+    const data = (await res.json()) as ApiEntry[]
+    if (!Array.isArray(data) || !data.length) return null
+    const first = data[0]
+    return extractGbUsIpaFromPhonetics(first.phonetics, first.phonetic)
+  } catch {
+    return null
+  }
+}
+
+export async function fetchEnglishWordsGbUsIpaRows(
+  tokens: string[],
+  signal?: AbortSignal,
+): Promise<TranslateIpaWordRow[]> {
+  const pairs = await Promise.all(
+    tokens.map(async (w) => {
+      const ip = await fetchEnglishWordGbUsIpaFromApi(w, signal)
+      return { w, ip } as const
+    }),
+  )
+  const out: TranslateIpaWordRow[] = []
+  for (const { w, ip } of pairs) {
+    if (!ip?.gb && !ip?.us) continue
+    out.push({ word: w, gb: ip.gb, us: ip.us })
+  }
+  return out
 }
 
 export class DictionaryApiDevProvider implements DictionaryProvider {

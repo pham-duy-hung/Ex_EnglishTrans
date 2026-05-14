@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import * as XLSX from 'xlsx'
 import type { HistoryItem, TranslateSessionState, WordbookEntry } from '../types/storage'
+import { GbUsIpaBadges } from '../lib/dictionary/GbUsIpaBadges'
 import { TRANSLATE_SESSION_KEY } from '../lib/sessionKeys'
 import { clearHistory, listHistory, listWordbook, removeWordbookEntry } from '../lib/repo'
 import { speakEnglish } from '../lib/speakEnglish'
@@ -112,6 +113,17 @@ export function SidePanelApp() {
           ) : (
             <div className="space-y-2 text-sm">
               <div className="text-slate-500 text-xs break-words">{session.query}</div>
+              {session.ipaByWord?.length ? (
+                <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-800/50 px-2 py-1.5 space-y-1 max-h-40 overflow-auto">
+                  <div className="text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-400">IPA (DictionaryAPI)</div>
+                  {session.ipaByWord.filter((row) => row.gb || row.us).map((row) => (
+                    <div key={row.word} className="text-xs font-mono break-words">
+                      <span className="font-sans font-semibold text-slate-700 dark:text-slate-200">{row.word}</span>{' '}
+                      <GbUsIpaBadges gb={row.gb} us={row.us} />
+                    </div>
+                  ))}
+                </div>
+              ) : null}
               {session.query.trim() ? (
                 <div className="flex flex-wrap gap-2">
                   <button
@@ -191,7 +203,13 @@ export function SidePanelApp() {
               <li key={w.id} className="border-b border-slate-100 dark:border-slate-800 pb-2 flex gap-2">
                 <div className="flex-1 min-w-0">
                   <div className="font-medium">{w.wordEntry.word}</div>
-                  {w.wordEntry.ipa ? <div className="text-xs text-slate-500">{w.wordEntry.ipa}</div> : null}
+                  {w.wordEntry.ipaGb || w.wordEntry.ipaUs ? (
+                    <div className="text-xs">
+                      <GbUsIpaBadges gb={w.wordEntry.ipaGb} us={w.wordEntry.ipaUs} />
+                    </div>
+                  ) : w.wordEntry.ipa ? (
+                    <div className="text-xs text-slate-500">{w.wordEntry.ipa}</div>
+                  ) : null}
                   {w.contextSentence ? (
                     <div className="text-xs text-slate-600 dark:text-slate-300 break-words">{w.contextSentence}</div>
                   ) : null}
