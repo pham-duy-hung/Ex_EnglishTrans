@@ -45,33 +45,59 @@ Mỗi lần đổi code: chạy lại `npm run build`, rồi nhấn **Tải lạ
 
 - Mở **Options** của extension: cấu hình Azure Translator và/hoặc **Translate proxy**, từ điển (DictionaryAPI.dev mặc định hoặc Custom REST), ngôn ngữ đích, giọng đọc, v.v.
 
-## Tạo bản release (phát hành thủ công)
+## Thông tin tạo release
 
-1. **Đồng bộ phiên bản** (tránh lệch giữa store và gói ZIP):
-   - `version` trong [`src/manifest.ts`](src/manifest.ts) (ví dụ `0.1.1`).
-   - `version` trong [`package.json`](package.json) cùng số đó.
+### File và trường cần khớp nhau
 
-2. **Build sạch:**
+| Mục | File | Ghi chú |
+|-----|------|---------|
+| Phiên bản extension | [`src/manifest.ts`](src/manifest.ts) → `version` | Chrome/Edge đọc từ `manifest.json` sau build |
+| Phiên bản npm / tag | [`package.json`](package.json) → `version` | Nên trùng với manifest để dễ quản lý |
 
-   ```bash
-   npm run build
-   ```
+**Định dạng `version` (Manifest V3):** chuỗi tối đa bốn nhóm số, cách nhau bằng dấu chấm, mỗi nhóm 0–65535 (ví dụ `1.2.3`, `0.1.10`). Tránh tiền tố `v` trong manifest.
 
-3. **Kiểm tra** `dist/`: mở Load unpacked trỏ vào `dist`, thử đủ luồng (1 từ, nhiều từ, Options, dịch).
+### Checklist trước khi đóng gói
 
-4. **Đóng gói ZIP để nộp Chrome Web Store / Edge Add-ons**  
-   File ZIP phải có **`manifest.json` ở thư mục gốc** (không được là `dist/manifest.json` bên trong một lớp thư mục trùng tên sai cấu trúc).
+1. Cập nhật `version` ở **cả hai** chỗ trên (cùng một số).
+2. (Khuyến nghị) Ghi **changelog** ngắn: file `CHANGELOG.md` hoặc mô tả trong GitHub Release / cửa hàng (tính năng mới, sửa lỗi, breaking change nếu có).
+3. Chạy `npm run build` — không lỗi TypeScript / Vite.
+4. Load unpacked thư mục `dist/`, kiểm tra nhanh: **1 từ** (popup + IPA nếu có), **≥2 từ** (dịch + side panel / ô kết quả), **Options** (lưu cấu hình), trang HTTPS bất kỳ.
 
-   - **Cách đúng:** nén **toàn bộ tệp và thư mục con bên trong** `dist` (chọn hết nội dung trong `dist` → nén), đặt tên ví dụ `english-lookup-0.1.1.zip`.
-   - **Windows (PowerShell)** từ thư mục gốc repo:
+### Build và tạo file ZIP nộp cửa hàng
 
-     ```powershell
-     Compress-Archive -Path dist\* -DestinationPath english-lookup-0.1.1.zip -Force
-     ```
+```bash
+npm run build
+```
 
-5. **Đính kèm bản phát hành trên GitHub (tuỳ chọn):** tạo *Release*, upload file ZIP và ghi chú thay đổi.
+**Yêu cầu cấu trúc ZIP:** trong file nén, **`manifest.json` phải nằm ở thư mục gốc** (cùng cấp với thư mục `assets/`, v.v.), không được bọc thêm một lớp thư mục rỗng sai kiểu `release/dist/manifest.json`.
 
-6. **Nộp cửa hàng:** dùng file ZIP ở bước 4; làm theo checklist của [Chrome Web Store](https://developer.chrome.com/docs/webstore/publish) hoặc [Partner Center (Edge)](https://learn.microsoft.com/microsoft-edge/extensions-chromium/publish/publish-extension).
+- **Đúng:** nén *nội dung* bên trong `dist` (mọi file và folder con của `dist`).
+- **Windows (PowerShell)** từ thư mục gốc repo (đổi tên file theo version):
+
+  ```powershell
+  Compress-Archive -Path dist\* -DestinationPath english-lookup-0.1.1.zip -Force
+  ```
+
+**Kiểm tra nhanh:** giải nén ZIP ra một thư mục tạm → mở `manifest.json` ngay tại đó → bật Developer mode → Load unpacked vào thư mục đã giải nén.
+
+### Git tag (tuỳ chọn, cho GitHub Release)
+
+```bash
+git add -A
+git commit -m "Release v0.1.1"
+git tag v0.1.1
+git push origin main
+git push origin v0.1.1
+```
+
+Trên GitHub: **Releases → Draft a new release** → chọn tag `v0.1.1` → đính kèm `english-lookup-0.1.1.zip` → mô tả thay đổi.
+
+### Nộp Chrome Web Store / Microsoft Edge Add-ons
+
+- **Chrome:** tài khoản nhà phát triển, phí đăng ký một lần; làm theo [Hướng dẫn xuất bản](https://developer.chrome.com/docs/webstore/publish). Lần đầu có thể cần **chính sách quyền riêng tư** (URL) vì extension có `host_permissions` rộng (`http(s)://*/*`) — chuẩn bị URL trang mô tả cách dùng dữ liệu.
+- **Edge:** [Xuất bản extension Chromium](https://learn.microsoft.com/microsoft-edge/extensions-chromium/publish/publish-extension) qua Partner Center; có thể dùng cùng gói ZIP nếu manifest tương thích.
+
+Lưu ý: **không** đưa subscription key Azure hoặc URL proxy chứa bí mật vào repo hoặc vào ZIP; người dùng tự điền trong Options sau khi cài.
 
 ## Script có sẵn
 
