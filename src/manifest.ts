@@ -5,7 +5,7 @@ export default defineManifest({
   name: 'English Lookup & Translation 2026',
   version: '0.1.0',
   description:
-    'Click the toolbar icon, then highlight text: dictionary popup (≤5 words) or side panel translation (>5 words).',
+    'Click the toolbar icon, then highlight: 1 word = dictionary popup + target-language gloss; 2+ words = side panel translation (Azure or proxy).',
   action: {
     default_title: 'English Lookup — Bật chế độ bôi đen (chuột kính lúp)',
   },

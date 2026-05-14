@@ -20,8 +20,20 @@ export function normalizeTranslateProxyBase(raw: string | undefined): string | u
   return raw.trim().replace(/\/$/, '')
 }
 
-/** URL này rõ ràng là Dictionary GET, không phải POST /translate của bạn. */
-export function isLikelyDictionaryUrlNotTranslateProxy(url: string): boolean {
+/** Endpoint Translator từ Portal (chỉ gốc, không kèm path). Dùng khi resource là *.cognitiveservices.azure.com. */
+export function normalizeAzureTranslatorEndpoint(raw: string | undefined): string | undefined {
+  if (!raw?.trim()) return undefined
+  let t = stripWrappingParens(raw).trim()
+  while (t.endsWith('/')) t = t.slice(0, -1).trim()
+  if (!/^https?:\/\//i.test(t)) t = `https://${t}`
+  try {
+    const u = new URL(t)
+    if (u.protocol !== 'https:' && u.protocol !== 'http:') return undefined
+    return u.origin
+  } catch {
+    return undefined
+  }
+}
   const u = url.toLowerCase()
   return (
     u.includes('dictionaryapi.dev') ||

@@ -3,9 +3,20 @@ export const MSG = {
   START_PICK_MODE: 'START_PICK_MODE',
   LOOKUP_DICTIONARY: 'LOOKUP_DICTIONARY',
   TRANSLATE_OPEN_PANEL: 'TRANSLATE_OPEN_PANEL',
+  /** Background → content: hiện kết quả dịch trên trang (Edge có thể không hiện Side panel). */
+  TRANSLATE_RESULT_TO_TAB: 'TRANSLATE_RESULT_TO_TAB',
   OPEN_OPTIONS: 'OPEN_OPTIONS',
   SAVE_WORDBOOK_FROM_CONTENT: 'SAVE_WORDBOOK_FROM_CONTENT',
 } as const
+
+/** Tin nhắn từ service worker tới content script (không gửi vào `BackgroundMessage`). */
+export type TranslateResultToTabMessage = {
+  type: typeof MSG.TRANSLATE_RESULT_TO_TAB
+  query: string
+  translatedText?: string
+  error?: string
+  pageUrl?: string
+}
 
 export type LookupDictionaryMessage = {
   type: typeof MSG.LOOKUP_DICTIONARY

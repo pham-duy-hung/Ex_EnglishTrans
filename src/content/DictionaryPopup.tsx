@@ -28,13 +28,25 @@ function speakWord(text: string, voicePref: 'en-US' | 'en-GB') {
 
 type Props = {
   entry: WordEntry
+  /** Bản dịch theo ngôn ngữ đích trong Options (Azure / proxy). */
+  translatedVi?: string
+  /** Lỗi gọi dịch (Azure/proxy) — hiển thị để dễ cấu hình lại Options. */
+  translationError?: string
   anchor: { x: number; y: number }
   pageUrl: string
   contextSentence?: string
   onClose: () => void
 }
 
-export function DictionaryPopup({ entry, anchor, pageUrl, contextSentence, onClose }: Props) {
+export function DictionaryPopup({
+  entry,
+  translatedVi,
+  translationError,
+  anchor,
+  pageUrl,
+  contextSentence,
+  onClose,
+}: Props) {
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS)
   const [err, setErr] = useState<string | null>(null)
 
@@ -120,6 +132,20 @@ export function DictionaryPopup({ entry, anchor, pageUrl, contextSentence, onClo
           ★ Wordbook
         </button>
       </div>
+
+      {translatedVi ? (
+        <div className="px-3 py-2 border-b border-slate-200 dark:border-slate-700 bg-emerald-50/90 dark:bg-emerald-950/35">
+          <div className="text-[10px] uppercase tracking-wide text-emerald-800 dark:text-emerald-300/90">
+            Bản dịch ({settings.targetLanguage})
+          </div>
+          <div className="text-sm text-emerald-950 dark:text-emerald-50 mt-0.5 whitespace-pre-wrap">{translatedVi}</div>
+        </div>
+      ) : translationError ? (
+        <div className="px-3 py-2 border-b border-amber-200 dark:border-amber-900/50 bg-amber-50/90 dark:bg-amber-950/30">
+          <div className="text-[10px] uppercase tracking-wide text-amber-800 dark:text-amber-200/90">Không dịch được</div>
+          <div className="text-xs text-amber-950 dark:text-amber-100 mt-0.5 break-words">{translationError}</div>
+        </div>
+      ) : null}
 
       {err ? <div className="px-3 py-2 text-sm text-red-600 dark:text-red-400">{err}</div> : null}
 

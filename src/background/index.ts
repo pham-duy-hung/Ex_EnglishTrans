@@ -2,7 +2,7 @@ import { TRANSLATE_SESSION_KEY } from '../lib/sessionKeys'
 import { getDictionaryProvider, loadSettings } from '../lib/dictionary/factory'
 import { appendHistory, appendWordbook, summarizeWordEntry } from '../lib/repo'
 import type { BackgroundMessage, LookupDictionaryMessage, TranslateOpenPanelMessage } from '../lib/messages'
-import { MSG } from '../lib/messages'
+import { MSG, type TranslateResultToTabMessage } from '../lib/messages'
 import type {
   AppSettings,
   TranslateProxyRequest,
@@ -12,6 +12,7 @@ import type {
 } from '../types/storage'
 import { isLikelyDictionaryUrlNotTranslateProxy } from '../lib/settingsSanitize'
 import { translateWithAzure } from '../lib/azureTranslate'
+import { toFriendlyNetworkError } from '../lib/fetchErrors'
 
 async function translateViaProxy(
   proxyBase: string,
@@ -24,11 +25,16 @@ async function translateViaProxy(
   }
   const base = proxyBase.replace(/\/$/, '')
   const url = base.endsWith('/translate') ? base : `${base}/translate`
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-    body: JSON.stringify(body),
-  })
+  let res: Response
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify(body),
+    })
+  } catch (e) {
+    throw toFriendlyNetworkError('Translate proxy', e, 'proxy')
+  }
   if (!res.ok) {
     const t = await res.text()
     throw new Error(t || `Proxy ${res.status}`)
@@ -47,11 +53,50 @@ function hasValidTranslateProxy(settings: { translateProxyUrl?: string }): boole
   return Boolean(u && !isLikelyDictionaryUrlNotTranslateProxy(u))
 }
 
+function hasTranslateEngine(settings: AppSettings): boolean {
+  return hasValidTranslateProxy(settings) || Boolean(settings.azureTranslatorKey?.trim())
+}
+
 async function translateWithSettings(settings: AppSettings, body: TranslateProxyRequest): Promise<TranslateProxyResponse> {
-  if (hasValidTranslateProxy(settings)) {
-    return translateViaProxy(settings.translateProxyUrl!, body)
+  const hasProxy = hasValidTranslateProxy(settings)
+  const hasAzure = Boolean(settings.azureTranslatorKey?.trim())
+
+  /** Có cả hai thì gọi Azure trước — nhiều người để proxy dev cũ / sai URL gây Failed to fetch và chặn dịch. */
+  if (hasAzure && hasProxy) {
+    try {
+      return await translateWithAzure(settings, body)
+    } catch (azureErr) {
+      try {
+        return await translateViaProxy(settings.translateProxyUrl!, body)
+      } catch (proxyErr) {
+        const a = azureErr instanceof Error ? azureErr.message : String(azureErr)
+        const p = proxyErr instanceof Error ? proxyErr.message : String(proxyErr)
+        throw new Error(
+          `Đã thử Azure rồi proxy — cả hai đều lỗi.\n\n【Azure】\n${a}\n\n【Proxy】\n${p}\n\nGợi ý: xóa «Translate proxy» nếu không dùng; kiểm tra key + Region Azure.`,
+        )
+      }
+    }
   }
-  if (settings.azureTranslatorKey?.trim()) {
+
+  if (hasProxy) {
+    try {
+      return await translateViaProxy(settings.translateProxyUrl!, body)
+    } catch (proxyErr) {
+      if (hasAzure) {
+        try {
+          return await translateWithAzure(settings, body)
+        } catch (azureErr) {
+          const p = proxyErr instanceof Error ? proxyErr.message : String(proxyErr)
+          const a = azureErr instanceof Error ? azureErr.message : String(azureErr)
+          throw new Error(
+            `Đã thử proxy rồi Azure — cả hai đều lỗi.\n\n【Proxy】\n${p}\n\n【Azure】\n${a}\n\nGợi ý: xóa «Translate proxy» trong Options nếu không dùng; kiểm tra key + Region Azure.`,
+          )
+        }
+      }
+      throw proxyErr
+    }
+  }
+  if (hasAzure) {
     return translateWithAzure(settings, body)
   }
   throw new Error(
@@ -76,6 +121,20 @@ chrome.runtime.onMessage.addListener((message: BackgroundMessage, sender, sendRe
         if (m.query.trim().includes(' ')) {
           entry = { ...entry, word: m.query.trim() }
         }
+        let translatedVi: string | undefined
+        let translationError: string | undefined
+        if (hasTranslateEngine(settings)) {
+          try {
+            const tr = await translateWithSettings(settings, {
+              text: m.query.trim(),
+              sourceLang: settings.sourceLanguage === 'auto' ? null : settings.sourceLanguage,
+              targetLang: settings.targetLanguage,
+            })
+            translatedVi = tr.translatedText
+          } catch (e) {
+            translationError = e instanceof Error ? e.message : String(e)
+          }
+        }
         await appendHistory({
           kind: 'dictionary',
           query: m.query,
@@ -84,14 +143,14 @@ chrome.runtime.onMessage.addListener((message: BackgroundMessage, sender, sendRe
           contextSentence: m.contextSentence,
           snapshot: entry,
         })
-        sendResponse({ ok: true as const, entry })
+        sendResponse({ ok: true as const, entry, translatedVi, translationError })
         return
       }
 
       if (message.type === MSG.TRANSLATE_OPEN_PANEL) {
         const m = message as TranslateOpenPanelMessage
         const settings = await loadSettings()
-        if (!hasValidTranslateProxy(settings) && !settings.azureTranslatorKey?.trim()) {
+        if (!hasTranslateEngine(settings)) {
           sendResponse({
             ok: false as const,
             error:
@@ -115,6 +174,16 @@ chrome.runtime.onMessage.addListener((message: BackgroundMessage, sender, sendRe
         sendResponse({ ok: true as const })
 
         void (async () => {
+          const pushToTab = async (payload: Omit<TranslateResultToTabMessage, 'type'>) => {
+            try {
+              await chrome.tabs.sendMessage(tabId, {
+                type: MSG.TRANSLATE_RESULT_TO_TAB,
+                ...payload,
+              } satisfies TranslateResultToTabMessage)
+            } catch {
+              /* Tab đổi URL / không còn content script */
+            }
+          }
           try {
             const req: TranslateProxyRequest = {
               text: m.text,
@@ -137,13 +206,24 @@ chrome.runtime.onMessage.addListener((message: BackgroundMessage, sender, sendRe
               url: m.pageUrl,
               contextSentence: m.contextSentence,
             })
+            await pushToTab({
+              query: m.text,
+              translatedText: res.translatedText,
+              pageUrl: m.pageUrl,
+            })
           } catch (err) {
+            const errMsg = err instanceof Error ? err.message : String(err)
             await setSession({
               status: 'error',
               awaitingSelection: false,
               query: m.text,
               pageUrl: m.pageUrl,
-              error: err instanceof Error ? err.message : String(err),
+              error: errMsg,
+            })
+            await pushToTab({
+              query: m.text,
+              error: errMsg,
+              pageUrl: m.pageUrl,
             })
           }
         })()
@@ -181,31 +261,46 @@ function registerActionContextMenu() {
   )
 }
 
-chrome.runtime.onInstalled.addListener(registerActionContextMenu)
+chrome.runtime.onInstalled.addListener(() => {
+  registerActionContextMenu()
+})
 registerActionContextMenu()
+void chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: false }).catch(() => {
+  /* Một số bản Chromium cũ không có API */
+})
 
 chrome.contextMenus.onClicked.addListener((info) => {
   if (info.menuItemId === CONTEXT_OPTIONS) void chrome.runtime.openOptionsPage()
 })
 
-chrome.action.onClicked.addListener(() => {
+/**
+ * `sidePanel.open()` phải nằm trong chuỗi user gesture — không được `await` gì trước đó
+ * (vd. `tabs.query`), nếu không Chrome từ chối mở panel im lặng hoặc lỗi.
+ */
+chrome.action.onClicked.addListener((tab) => {
+  if (!tab?.id || !tab.url?.startsWith('http')) {
+    void chrome.runtime.openOptionsPage()
+    return
+  }
+  const tabId = tab.id
+  void chrome.sidePanel.setOptions({ tabId, enabled: true })
+  void chrome.sidePanel
+    .open({ tabId })
+    .catch((e) => {
+      console.warn('[EnglishLookup] sidePanel.open({ tabId }):', e)
+      if (tab.windowId != null) return chrome.sidePanel.open({ windowId: tab.windowId })
+      throw e
+    })
+    .catch((e2) => {
+      console.warn('[EnglishLookup] sidePanel.open({ windowId }):', e2)
+    })
+
   void (async () => {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
-    if (!tab?.id || !tab.url?.startsWith('http')) {
-      void chrome.runtime.openOptionsPage()
-      return
-    }
-    const tabId = tab.id
-    try {
-      await chrome.sidePanel.setOptions({ tabId, enabled: true })
-      await chrome.sidePanel.open({ tabId })
-    } catch (e) {
-      console.warn('[EnglishLookup] sidePanel.open on icon click:', e)
-    }
     await setSession({
       status: 'loading',
       awaitingSelection: true,
-      query: 'Trên trang web: bôi đen đoạn cần dịch (hơn 5 từ), rồi thả chuột. Tra ≤5 từ thì không cần mở panel này.',
+      query:
+        'Trên trang web: 1 từ → popup từ điển (+ bản dịch nếu đã cấu hình Azure/proxy). Từ 2 từ trở lên → dịch trong Side panel — thả chuột sau khi bôi đen.',
       pageUrl: tab.url,
       translatedText: undefined,
       error: undefined,

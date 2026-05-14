@@ -102,7 +102,7 @@ export function SidePanelApp() {
         <section className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3">
           <div className="text-sm font-medium mb-2">Phiên dịch gần nhất</div>
           {!session ? (
-            <div className="text-sm text-slate-500">Chưa có phiên (nhấn icon → bôi đen đoạn &gt; 5 từ; cần Azure key hoặc proxy).</div>
+            <div className="text-sm text-slate-500">Chưa có phiên (nhấn icon → bôi đen từ 2 từ trở lên để dịch; cần Azure key hoặc proxy).</div>
           ) : session.status === 'loading' ? (
             <div className="text-sm space-y-1">
               {session.awaitingSelection ? (

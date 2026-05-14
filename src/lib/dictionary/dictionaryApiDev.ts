@@ -66,7 +66,7 @@ export class DictionaryApiDevProvider implements DictionaryProvider {
     if (!res.ok) {
       if (res.status === 404) {
         throw new Error(
-          'Không có mục từ điển cho từ này (404). Thử một từ tiếng Anh khác, hoặc bôi đen &gt; 5 từ để dịch.',
+          'Không có mục từ điển cho từ này (404). Thử một từ tiếng Anh khác, hoặc bôi đen từ 2 từ trở lên để dịch (Side panel).',
         )
       }
       throw new Error(`Dictionary API ${res.status}`)

@@ -7,7 +7,7 @@
  * Notes:
  * - Hyphenated words stay one token (no split on hyphen).
  * - Punctuation attached to a word stays with that token (e.g. "hello," → one token).
- * - Not a linguistic tokenizer; good default for the ≤5 vs >5 branch.
+ * - Not a linguistic tokenizer; good default for the 1-word vs multi-word branch.
  */
 export function countWordsForBranching(text: string): number {
   const t = text.trim()

@@ -1,4 +1,5 @@
 import type { AppSettings, TranslateProxyRequest, TranslateProxyResponse } from '../types/storage'
+import { toFriendlyNetworkError } from './fetchErrors'
 
 const API_VERSION = '3.0'
 
@@ -30,7 +31,7 @@ export async function translateWithAzure(
     throw new Error('Thiếu Azure Translator subscription key trong Options.')
   }
 
-  const to = (body.targetLang || 'vi').trim()
+  const to = (body.targetLang || 'vi').trim() || 'vi'
   const params = new URLSearchParams({
     'api-version': API_VERSION,
     to,
@@ -47,15 +48,21 @@ export async function translateWithAzure(
     'Content-Type': 'application/json; charset=UTF-8',
   }
   const regionHdr = settings.azureTranslatorRegion?.trim()
-  if (regionHdr && regionHdr.toLowerCase() !== 'global') {
+  // Nhiều resource Translator bắt buộc header region (kể cả endpoint global); 401001 nếu thiếu/sai.
+  if (regionHdr) {
     headers['Ocp-Apim-Subscription-Region'] = regionHdr
   }
 
-  const res = await fetch(url, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify([{ Text: body.text }]),
-  })
+  let res: Response
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify([{ Text: body.text }]),
+    })
+  } catch (e) {
+    throw toFriendlyNetworkError('Azure Translator', e)
+  }
 
   const rawText = await res.text()
   let data: unknown
@@ -73,6 +80,12 @@ export async function translateWithAzure(
       typeof data === 'object' && data !== null && 'error' in data
         ? JSON.stringify((data as { error: unknown }).error)
         : rawText.slice(0, 400)
+    if (res.status === 401) {
+      throw new Error(
+        `Azure 401 (401001): Key sai/hết hạn, hoặc thiếu/sai Region. Trong Options: dán lại Key 1 của resource Translator; ` +
+          `điền ô Region = Location trên Azure Portal (vd. eastus, japaneast). Để trống Region chỉ hợp với một số kiểu resource. Chi tiết API: ${msg}`,
+      )
+    }
     throw new Error(`Azure Translator ${res.status}: ${msg}`)
   }
 

@@ -39,7 +39,8 @@ export function OptionsApp() {
       <h1 className="text-xl font-semibold">English Lookup — Settings</h1>
       <p className="text-sm text-slate-600 dark:text-slate-300">
         <strong>Nhấn icon extension</strong> trên thanh công cụ → chuột thành kính lúp → <strong>bôi đen</strong> văn
-        bản, thả chuột. ≤5 từ → popup từ điển; &gt;5 từ → side panel (cần{' '}
+        bản, thả chuột. <strong>1 từ</strong> → popup từ điển (tiếng Anh) + bản dịch theo ngôn ngữ đích nếu đã cấu hình
+        Azure/proxy; <strong>từ 2 từ trở lên</strong> → dịch trong side panel (cần{' '}
         <strong>Microsoft Translator (Azure)</strong> — subscription key — hoặc proxy tùy chọn).
       </p>
       <p className="text-xs text-slate-500">
@@ -113,13 +114,15 @@ export function OptionsApp() {
           />
           {translateProxyWarning ? (
             <div className="text-xs text-red-600 dark:text-red-400 font-medium">
-              URL này là API từ điển (GET), không dùng để dịch. Để trống nếu chỉ tra từ; dịch đoạn &gt; 5 từ dùng Azure
+              URL này là API từ điển (GET), không dùng để dịch. Để trống nếu chỉ tra từ; dịch cụm (2+ từ) dùng Azure
               Translator bên dưới hoặc server proxy của bạn (<span className="font-mono">POST .../translate</span>).
             </div>
           ) : (
             <div className="text-xs text-slate-500 space-y-1">
               <p>
-                <strong>Ưu tiên:</strong> nếu có proxy hợp lệ và Azure key, extension dùng <strong>proxy</strong> trước.
+                <strong>Ưu tiên:</strong> nếu có cả <strong>Azure key</strong> và <strong>proxy</strong>, extension gọi{' '}
+                <strong>Azure trước</strong> (tránh proxy dev/sai URL làm «Failed to fetch»); Azure lỗi mới thử proxy. Chỉ
+                dùng Azure: để trống ô proxy.
               </p>
               <p>
                 Contract proxy: POST JSON{' '}
@@ -161,19 +164,22 @@ export function OptionsApp() {
             />
           </label>
           <label className="block text-sm space-y-1">
-            <div className="font-medium">Region (tùy chọn)</div>
+            <div className="font-medium">Region / Location (Azure)</div>
             <input
               className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-950 px-2 py-2 font-mono text-xs"
-              placeholder="eastus, japaneast… — để trống = endpoint global"
+              placeholder="eastus — copy từ Portal (Keys and Endpoint → Location)"
               value={s.azureTranslatorRegion ?? ''}
               onChange={(e) => patch({ azureTranslatorRegion: e.target.value })}
             />
             <div className="text-[11px] text-slate-500">
-              Nếu Portal hiển thị region, điền giống hệt; nhiều resource cần header{' '}
-              <span className="font-mono">Ocp-Apim-Subscription-Region</span> (extension tự gửi khi có region).
+              Nếu gặp lỗi <span className="font-mono">401 / 401001</span>: gần như luôn cần điền đúng Location (vd.{' '}
+              <span className="font-mono">eastus</span>) để gửi header{' '}
+              <span className="font-mono">Ocp-Apim-Subscription-Region</span>. Có thể dùng giá trị{' '}
+              <span className="font-mono">global</span> nếu resource của bạn yêu cầu.
             </div>
           </label>
-        </fieldset>        <div className="grid grid-cols-2 gap-2">
+        </fieldset>
+        <div className="grid grid-cols-2 gap-2">
           <label className="block text-sm space-y-1">
             <div className="font-medium">Source language</div>
             <input
