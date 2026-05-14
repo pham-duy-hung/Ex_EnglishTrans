@@ -34,6 +34,9 @@ export function normalizeAzureTranslatorEndpoint(raw: string | undefined): strin
     return undefined
   }
 }
+
+/** URL này rõ ràng là Dictionary GET, không phải POST /translate của bạn. */
+export function isLikelyDictionaryUrlNotTranslateProxy(url: string): boolean {
   const u = url.toLowerCase()
   return (
     u.includes('dictionaryapi.dev') ||

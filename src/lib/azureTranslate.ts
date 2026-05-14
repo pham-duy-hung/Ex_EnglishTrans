@@ -12,6 +12,26 @@ export function getAzureTranslatorBaseUrl(region?: string): string {
   return `https://${r}.api.cognitive.microsofttranslator.com`
 }
 
+/** URL POST translate (Text API v3) theo loại endpoint Azure. */
+export function buildAzureTranslateUrl(settings: AppSettings, searchParams: URLSearchParams): string {
+  const custom = settings.azureTranslatorEndpoint?.trim()
+  if (custom) {
+    const base = custom.replace(/\/$/, '')
+    let hostname: string
+    try {
+      hostname = new URL(base).hostname.toLowerCase()
+    } catch {
+      throw new Error('Azure: «Endpoint gốc» trong Options không phải URL hợp lệ.')
+    }
+    if (hostname.endsWith('.cognitiveservices.azure.com')) {
+      return `${base}/translator/text/v3.0/translate?${searchParams.toString()}`
+    }
+    return `${base}/translate?${searchParams.toString()}`
+  }
+  const base = getAzureTranslatorBaseUrl(settings.azureTranslatorRegion)
+  return `${base.replace(/\/$/, '')}/translate?${searchParams.toString()}`
+}
+
 type AzureTranslateResponseItem = {
   detectedLanguage?: { language: string; score?: number }
   translations?: { text: string; to: string }[]
@@ -40,8 +60,7 @@ export async function translateWithAzure(
     params.set('from', String(body.sourceLang).trim())
   }
 
-  const base = getAzureTranslatorBaseUrl(settings.azureTranslatorRegion)
-  const url = `${base.replace(/\/$/, '')}/translate?${params.toString()}`
+  const url = buildAzureTranslateUrl(settings, params)
 
   const headers: Record<string, string> = {
     'Ocp-Apim-Subscription-Key': key,
@@ -61,7 +80,7 @@ export async function translateWithAzure(
       body: JSON.stringify([{ Text: body.text }]),
     })
   } catch (e) {
-    throw toFriendlyNetworkError('Azure Translator', e)
+    throw toFriendlyNetworkError('Azure Translator', e, 'azure')
   }
 
   const rawText = await res.text()

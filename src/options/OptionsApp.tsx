@@ -178,6 +178,21 @@ export function OptionsApp() {
               <span className="font-mono">global</span> nếu resource của bạn yêu cầu.
             </div>
           </label>
+          <label className="block text-sm space-y-1">
+            <div className="font-medium">Endpoint gốc (tùy chọn)</div>
+            <input
+              className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-950 px-2 py-2 font-mono text-xs"
+              placeholder="https://ten-resource.cognitiveservices.azure.com"
+              value={s.azureTranslatorEndpoint ?? ''}
+              onChange={(e) => patch({ azureTranslatorEndpoint: e.target.value })}
+            />
+            <div className="text-[11px] text-slate-500">
+              Chỉ dán phần gốc từ Portal (Keys and Endpoint → Endpoint), <strong>không</strong> thêm path. Bắt buộc nếu
+              resource của bạn dùng tên miền <span className="font-mono">*.cognitiveservices.azure.com</span> — khi đó
+              extension gọi đúng path <span className="font-mono">/translator/text/v3.0/translate</span>. Nếu để trống
+              vẫn dùng endpoint Translator công cộng (api.cognitive…).
+            </div>
+          </label>
         </fieldset>
         <div className="grid grid-cols-2 gap-2">
           <label className="block text-sm space-y-1">
@@ -242,7 +257,7 @@ export function OptionsApp() {
             <span className="font-mono">scripting</span> — nhắc F5 nếu tab chưa có content script
           </li>
           <li>
-            <span className="font-mono">host_permissions</span> — DictionaryAPI, Azure Translator, http(s) cho content
+            <span className="font-mono">host_permissions</span> — DictionaryAPI, Azure Translator (api.cognitive…, *.cognitiveservices.azure.com), http(s) cho content
             script + HTTPS chung
           </li>
         </ul>

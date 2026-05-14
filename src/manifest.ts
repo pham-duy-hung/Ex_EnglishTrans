@@ -27,7 +27,7 @@ export default defineManifest({
   permissions: ['storage', 'sidePanel', 'tabs', 'contextMenus', 'scripting'],  host_permissions: [
     'https://api.dictionaryapi.dev/*',
     'https://api.cognitive.microsofttranslator.com/*',
-    'https://*.api.cognitive.microsofttranslator.com/*',
+    'https://*.cognitiveservices.azure.com/*',
     'http://*/*',
     'https://*/*',
   ],

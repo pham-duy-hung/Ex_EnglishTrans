@@ -5,6 +5,7 @@ import { DictionaryApiDevProvider } from './dictionaryApiDev'
 import type { DictionaryProvider } from './types'
 import {
   isLikelyDictionaryUrlNotTranslateProxy,
+  normalizeAzureTranslatorEndpoint,
   normalizeDictionaryUrlTemplate,
   normalizeTranslateProxyBase,
 } from '../settingsSanitize'
@@ -37,6 +38,7 @@ export async function loadSettings(): Promise<AppSettings> {
     translateProxyUrl: normalizeTranslateProxyBase(merged.translateProxyUrl),
     azureTranslatorKey: azureKey || undefined,
     azureTranslatorRegion: azureReg || undefined,
+    azureTranslatorEndpoint: normalizeAzureTranslatorEndpoint(merged.azureTranslatorEndpoint),
   }
 }
 
@@ -48,6 +50,9 @@ export async function saveSettings(patch: Partial<AppSettings>): Promise<AppSett
     patch.azureTranslatorRegion !== undefined
       ? patch.azureTranslatorRegion.trim() || undefined
       : current.azureTranslatorRegion
+  const azureEndpoint = normalizeAzureTranslatorEndpoint(
+    patch.azureTranslatorEndpoint !== undefined ? patch.azureTranslatorEndpoint : current.azureTranslatorEndpoint,
+  )
 
   const next: AppSettings = {
     ...current,
@@ -60,6 +65,7 @@ export async function saveSettings(patch: Partial<AppSettings>): Promise<AppSett
     ),
     azureTranslatorKey: azureKey,
     azureTranslatorRegion: azureReg,
+    azureTranslatorEndpoint: azureEndpoint,
   }
   await chrome.storage.sync.set({ settings: next })
   return next

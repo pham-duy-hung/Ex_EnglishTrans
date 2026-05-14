@@ -61,6 +61,11 @@ export interface AppSettings {
    * Nhiều resource bắt buộc header Ocp-Apim-Subscription-Region — khi đó điền đúng region từ Azure Portal.
    */
   azureTranslatorRegion?: string
+  /**
+   * Gốc URL từ Azure Portal → Keys and Endpoint → Endpoint (vd. https://ten.cognitiveservices.azure.com).
+   * Chỉ cần origin; extension tự nối path REST đúng loại resource.
+   */
+  azureTranslatorEndpoint?: string
   sourceLanguage: string
   targetLanguage: string
   defaultVoice: 'en-US' | 'en-GB'
@@ -96,6 +101,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   translateProxyUrl: undefined,
   azureTranslatorKey: undefined,
   azureTranslatorRegion: undefined,
+  azureTranslatorEndpoint: undefined,
   sourceLanguage: 'auto',
   targetLanguage: 'vi',
   defaultVoice: 'en-US',
