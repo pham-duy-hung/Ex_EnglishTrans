@@ -1,16 +1,16 @@
 import { useEffect, useMemo, useState } from 'react'
+import * as XLSX from 'xlsx'
 import type { HistoryItem, TranslateSessionState, WordbookEntry } from '../types/storage'
 import { TRANSLATE_SESSION_KEY } from '../lib/sessionKeys'
 import { clearHistory, listHistory, listWordbook, removeWordbookEntry } from '../lib/repo'
+import { speakEnglish } from '../lib/speakEnglish'
 
-function downloadText(filename: string, text: string) {
-  const blob = new Blob([text], { type: 'text/csv;charset=utf-8' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  a.click()
-  URL.revokeObjectURL(url)
+function downloadXlsx(filename: string, sheetName: string, rows: (string | number)[][]) {
+  const wb = XLSX.utils.book_new()
+  const ws = XLSX.utils.aoa_to_sheet(rows)
+  const safeName = sheetName.replace(/[[\]:*?/\\]/g, '_').slice(0, 31) || 'Sheet1'
+  XLSX.utils.book_append_sheet(wb, ws, safeName)
+  XLSX.writeFile(wb, filename)
 }
 
 export function SidePanelApp() {
@@ -57,38 +57,34 @@ export function SidePanelApp() {
     return () => chrome.storage.onChanged.removeListener(onCh)
   }, [])
 
-  const exportHistoryCsv = () => {
-    const rows = [
-      ['createdAt', 'kind', 'query', 'title', 'summary', 'url', 'context'].join(','),
-      ...history.map((x) =>
-        [
-          new Date(x.createdAt).toISOString(),
-          x.kind,
-          csvEscape(x.query),
-          csvEscape(x.title),
-          csvEscape(x.summary),
-          csvEscape(x.url ?? ''),
-          csvEscape(x.contextSentence ?? ''),
-        ].join(','),
-      ),
+  const exportHistoryXlsx = () => {
+    const rows: (string | number)[][] = [
+      ['createdAt', 'kind', 'query', 'title', 'summary', 'url', 'context'],
+      ...history.map((x) => [
+        new Date(x.createdAt).toISOString(),
+        x.kind,
+        x.query,
+        x.title,
+        x.summary,
+        x.url ?? '',
+        x.contextSentence ?? '',
+      ]),
     ]
-    downloadText('lookup-history.csv', rows.join('\n'))
+    downloadXlsx('lookup-history.xlsx', 'History', rows)
   }
 
-  const exportWordbookCsv = () => {
-    const rows = [
-      ['createdAt', 'word', 'ipa', 'context', 'sourceUrl'].join(','),
-      ...wordbook.map((x) =>
-        [
-          new Date(x.createdAt).toISOString(),
-          csvEscape(x.wordEntry.word),
-          csvEscape(x.wordEntry.ipa ?? ''),
-          csvEscape(x.contextSentence ?? ''),
-          csvEscape(x.sourceUrl ?? ''),
-        ].join(','),
-      ),
+  const exportWordbookXlsx = () => {
+    const rows: (string | number)[][] = [
+      ['createdAt', 'word', 'ipa', 'context', 'sourceUrl'],
+      ...wordbook.map((x) => [
+        new Date(x.createdAt).toISOString(),
+        x.wordEntry.word,
+        x.wordEntry.ipa ?? '',
+        x.contextSentence ?? '',
+        x.sourceUrl ?? '',
+      ]),
     ]
-    downloadText('wordbook.csv', rows.join('\n'))
+    downloadXlsx('wordbook.xlsx', 'Wordbook', rows)
   }
 
   return (
@@ -116,6 +112,24 @@ export function SidePanelApp() {
           ) : (
             <div className="space-y-2 text-sm">
               <div className="text-slate-500 text-xs break-words">{session.query}</div>
+              {session.query.trim() ? (
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    className="rounded-lg px-2 py-1 text-xs bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 hover:opacity-90"
+                    onClick={() => speakEnglish(session.query, 'en-US')}
+                  >
+                    🔈 Đọc đoạn gốc (US)
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded-lg px-2 py-1 text-xs bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 hover:opacity-90"
+                    onClick={() => speakEnglish(session.query, 'en-GB')}
+                  >
+                    🔈 Đọc đoạn gốc (UK)
+                  </button>
+                </div>
+              ) : null}
               <div className="whitespace-pre-wrap">{session.translatedText}</div>
               {session.pageUrl ? (
                 <a className="text-xs text-blue-600 dark:text-blue-400 break-all" href={session.pageUrl}>
@@ -133,9 +147,9 @@ export function SidePanelApp() {
               <button
                 type="button"
                 className="text-xs rounded-lg border border-slate-300 dark:border-slate-600 px-2 py-1"
-                onClick={() => void exportHistoryCsv()}
+                onClick={() => void exportHistoryXlsx()}
               >
-                Export CSV
+                Export XLSX
               </button>
               <button
                 type="button"
@@ -166,9 +180,9 @@ export function SidePanelApp() {
             <button
               type="button"
               className="text-xs rounded-lg border border-slate-300 dark:border-slate-600 px-2 py-1"
-              onClick={() => void exportWordbookCsv()}
+              onClick={() => void exportWordbookXlsx()}
             >
-              Export CSV
+              Export XLSX
             </button>
           </div>
           <ul className="space-y-2 max-h-64 overflow-auto text-sm">
@@ -196,10 +210,4 @@ export function SidePanelApp() {
       </div>
     </div>
   )
-}
-
-function csvEscape(s: string): string {
-  const needs = /[",\n]/.test(s)
-  const t = s.replaceAll('"', '""')
-  return needs ? `"${t}"` : t
 }

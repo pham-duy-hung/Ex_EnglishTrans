@@ -2,29 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { AppSettings, WordEntry } from '../types/storage'
 import { DEFAULT_SETTINGS } from '../types/storage'
 import { MSG } from '../lib/messages'
-
-function speakWord(text: string, voicePref: 'en-US' | 'en-GB') {
-  const syn = globalThis.speechSynthesis
-  const u = new SpeechSynthesisUtterance(text)
-  u.lang = voicePref
-  const pick = () => {
-    const voices = syn.getVoices()
-    const wantUS = voicePref === 'en-US'
-    const langMatch = voices.filter((v) => {
-      const l = v.lang.toLowerCase()
-      if (wantUS) return l.startsWith('en-us') || l === 'en'
-      return l.startsWith('en-gb')
-    })
-    const google =
-      langMatch.find((v) =>
-        /google/i.test(v.name) && (wantUS ? /us|america/i.test(v.voiceURI + v.name) : /gb|uk|british/i.test(v.voiceURI + v.name)),
-      ) ?? langMatch.find((v) => /google/i.test(v.name))
-    u.voice = google ?? langMatch[0] ?? null
-  }
-  pick()
-  syn.addEventListener('voiceschanged', pick, { once: true })
-  syn.speak(u)
-}
+import { speakEnglish } from '../lib/speakEnglish'
 
 type Props = {
   entry: WordEntry
@@ -113,14 +91,14 @@ export function DictionaryPopup({
         <button
           type="button"
           className="rounded-lg px-2 py-1 text-sm bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 hover:opacity-90"
-          onClick={() => speakWord(entry.word, 'en-US')}
+          onClick={() => speakEnglish(entry.word, 'en-US')}
         >
           🔈 US
         </button>
         <button
           type="button"
           className="rounded-lg px-2 py-1 text-sm bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 hover:opacity-90"
-          onClick={() => speakWord(entry.word, 'en-GB')}
+          onClick={() => speakEnglish(entry.word, 'en-GB')}
         >
           🔈 UK
         </button>

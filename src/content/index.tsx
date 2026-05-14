@@ -4,6 +4,7 @@ import contentCss from './content.css?inline'
 import { DictionaryPopup } from './DictionaryPopup'
 import { countWordsForBranching } from '../lib/wordCount'
 import { MSG, type TranslateResultToTabMessage } from '../lib/messages'
+import { speakEnglish } from '../lib/speakEnglish'
 import type { WordEntry } from '../types/storage'
 
 let hostEl: HTMLDivElement | null = null
@@ -135,6 +136,42 @@ function showTranslateResultPanel(payload: { query: string; translatedText?: str
   header.appendChild(title)
   header.appendChild(close)
 
+  let speakBar: HTMLDivElement | null = null
+  if (!payload.error && payload.query.trim()) {
+    speakBar = document.createElement('div')
+    Object.assign(speakBar.style, {
+      display: 'flex',
+      flexWrap: 'wrap',
+      gap: '6px',
+      padding: '6px 12px',
+      borderBottom: '1px solid rgba(148,163,184,0.2)',
+    })
+    const mkBtn = (label: string, accent: 'en-US' | 'en-GB') => {
+      const b = document.createElement('button')
+      b.type = 'button'
+      b.textContent = label
+      Object.assign(b.style, {
+        border: '1px solid rgba(148,163,184,0.45)',
+        background: 'rgba(30,41,59,0.95)',
+        color: '#e2e8f0',
+        borderRadius: '8px',
+        padding: '4px 10px',
+        fontSize: '11px',
+        cursor: 'pointer',
+      })
+      b.onmouseenter = () => {
+        b.style.background = 'rgba(51,65,85,0.95)'
+      }
+      b.onmouseleave = () => {
+        b.style.background = 'rgba(30,41,59,0.95)'
+      }
+      b.onclick = () => speakEnglish(payload.query, accent)
+      return b
+    }
+    speakBar.appendChild(mkBtn('🔈 US — đọc đoạn gốc', 'en-US'))
+    speakBar.appendChild(mkBtn('🔈 UK', 'en-GB'))
+  }
+
   const src = document.createElement('div')
   src.textContent = payload.query
   Object.assign(src.style, {
@@ -159,6 +196,7 @@ function showTranslateResultPanel(payload: { query: string; translatedText?: str
   body.textContent = payload.error ?? payload.translatedText ?? ''
 
   host.appendChild(header)
+  if (speakBar) host.appendChild(speakBar)
   host.appendChild(src)
   host.appendChild(body)
   document.documentElement.appendChild(host)
